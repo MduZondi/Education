@@ -1,0 +1,10 @@
+openai
+langchain
+streamlit
+streamlit-chat
+tiktoken
+gemini
+chromadb
+streamlit==1.37.1
+langchain_google_genai
+Pillow
