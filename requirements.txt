@@ -1,4 +1,2 @@
-langchain
-gemini
 langchain_google_genai
-Pillow
+
