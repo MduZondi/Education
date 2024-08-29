@@ -4,6 +4,7 @@ import os
 from PIL import Image
 import json
 import re
+import random
 
 # Set up Streamlit
 st.set_page_config(page_title='PersonaLearn: Your Personalized Learning Assistant', page_icon='🧠', layout="wide")
@@ -58,10 +59,15 @@ if 'quiz_score' not in st.session_state:
     st.session_state.quiz_score = 0
 if 'current_question' not in st.session_state:
     st.session_state.current_question = 0
+if 'wrong_answers' not in st.session_state:
+    st.session_state.wrong_answers = []
+
+# API Key Input
+google_api_key = st.text_input("Enter your Google API Key to start:", type="password")
 
 # Initialize the ChatGoogleGenerativeAI model
-google_api_key = "AIzaSyByN144UKV06XVeEm32okgCuos9HwhIv5Y"  # Replace with your actual API key
-llm = ChatGoogleGenerativeAI(model='gemini-pro', google_api_key=google_api_key)
+if google_api_key:
+    llm = ChatGoogleGenerativeAI(model='gemini-pro', google_api_key=google_api_key)
 
 # Function to gather user information
 def gather_user_info():
@@ -137,6 +143,13 @@ def generate_quiz_questions(topic, content, difficulty, num_questions):
                 if not isinstance(q['correct_answer'], int) or q['correct_answer'] not in range(4):
                     raise ValueError("Invalid correct_answer: expected an integer 0-3")
 
+                # Randomize the position of the correct answer
+                correct_index = q['correct_answer']
+                options = q['options']
+                random.shuffle(options)
+                q['correct_answer'] = options.index(q['options'][correct_index])
+                q['options'] = options
+
             return quiz_questions
         except json.JSONDecodeError as e:
             st.error(f"Failed to parse quiz questions as JSON. Error: {str(e)}")
@@ -147,7 +160,6 @@ def generate_quiz_questions(topic, content, difficulty, num_questions):
 
         st.error("Failed to generate valid quiz questions. Please try again.")
         return []
-
 
 # Function to display and handle quiz
 def run_quiz():
@@ -164,14 +176,21 @@ def run_quiz():
                 st.session_state.quiz_score += 1
             else:
                 st.error(f"Sorry, that's not correct. The right answer is: {question['options'][question['correct_answer']]}")
+                st.session_state.wrong_answers.append((question['question'], question['options'][question['correct_answer']]))
             
             st.session_state.current_question += 1
             st.rerun()
     else:
         st.success(f"Quiz completed! Your score: {st.session_state.quiz_score}/{len(st.session_state.quiz_questions)}")
+        if st.session_state.wrong_answers:
+            st.markdown("### Solutions to Incorrect Answers")
+            for q, correct_answer in st.session_state.wrong_answers:
+                st.write(f"**Question:** {q}")
+                st.write(f"**Correct Answer:** {correct_answer}")
         if st.button("Restart Quiz"):
             st.session_state.current_question = 0
             st.session_state.quiz_score = 0
+            st.session_state.wrong_answers = []
             st.rerun()
 
 # Menu
@@ -227,13 +246,14 @@ elif choice == "Quiz":
             difficulty = st.selectbox("Select quiz difficulty:", ["Easy", "Medium", "Hard"], key="quiz_difficulty")
             
             # Allow user to set the number of questions
-            num_questions = st.slider("Select the number of questions:", min_value=3, max_value=10, value=5, key="quiz_num_questions")
+            num_questions = st.slider("Select the number of questions:", min_value=3, max_value=20, value=5, key="quiz_num_questions")
             
             if st.button("Generate Quiz"):
                 # Generate quiz questions based on the selected difficulty and number of questions
                 st.session_state.quiz_questions = generate_quiz_questions(st.session_state.learning_topic, st.session_state.personalized_content, difficulty, num_questions)
                 st.session_state.current_question = 0
                 st.session_state.quiz_score = 0
+                st.session_state.wrong_answers = []
         
         if st.session_state.quiz_questions:
             st.markdown("## Quiz Time!")
@@ -259,4 +279,5 @@ if st.sidebar.button("Start Over"):
     st.session_state.quiz_questions = []
     st.session_state.quiz_score = 0
     st.session_state.current_question = 0
+    st.session_state.wrong_answers = []
     st.rerun()
